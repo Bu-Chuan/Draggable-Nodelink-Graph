@@ -21,3 +21,8 @@ load the json data, and provide the interactive functions.
 
 
 if you need english comments, maybe you can contact me or find some help from your china friedns.
+
+
+![Image text](https://raw.githubusercontent.com/Bu-Chuan/img-folder/master/%E7%82%B9%E7%BA%BF%E5%9B%BE.png)
+
+![Image text](https://raw.githubusercontent.com/Bu-Chuan/img-folder/master/%E7%82%B9%E7%BA%BF%E5%9B%BE2.png)
