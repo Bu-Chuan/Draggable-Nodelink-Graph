@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Bipartite Graph</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+    <script src="http://code.jquery.com/jquery-1.4.1.min.js"></script>
+</head>
+<script>
+
+
+    'use strict';
+    //迭代的第二个版本的网页，可以直接替换
+    //let jsonfile = "data/cur.json";
+    //let jsonfile = "cur.json"
+    let jsonfile = "data/simpleData/data3.0.json";//只有一个类的数据
+    //let jsonfile = "data/multClassData/data1.0.json";//有多个类的数据
+    //定义全局参数以及各种类
+    let CountOfLines = 0;
+    let Lines = [],
+        Points;//点，线
+    let IsLine = true,
+        IsBgLine = false;
+    let svg,
+        SvgWidth = 10000,
+        SvgHeight = 10000;
+    let LineWidth = 6,
+        BgLineWidth = 12,
+        TableDivHeight = 100,
+        PointRadius = 13;//线宽，背景线宽,画板距离边缘宽度
+
+    let defaultPointColor = ["brown", "gold", "darkblue", "plum", "olive", "pink", "red", "yellow"],
+        defaultLineColor = "grey",
+        defaultBgLineColor = "white"
+
+    let LineOpacity = 0.5,
+        BgLineopacity = 0.8;
+    let MoveingPoint = 0,//移动的节点
+        SelectedElementID = 0,//选中的元素
+        SelectedElementText = "",//选中元素的类型
+        SelectedElementType = "",
+        SelectedElementColor = "";
+    let ShowBgLines = false;
+
+    let Log = "";//数据备注
+    class Data {
+        constructor(p, l) {
+            this.Log = l;
+            this.Points = p;
+        }
+    }
+    /*
+    类:二分图中的线类
+    参数:
+        lid:线id
+        iid:对应的PointNumA的点的ID
+        jid:PoingNumB
+        isLine:是否是线，还是背景线。0线 1背景线
+        //isTop:是否要将这条线置顶
+    备注:
+    */
+    class Point {
+        constructor(id) {
+            this.pid = id;
+            this.num = [];
+            this.numLines = 0;
+            this.X = -1;
+            this.Y = -1;
+        }
+    }
+
+    /*
+    类:二分图中的线类
+    参数:
+    lid:线id
+    iid:对应的PointNumA的点的ID
+    jid:PoingNumB
+    isLine:是否是线，还是背景线。0线 1背景线
+    备注:
+    */
+    class Line {
+        constructor(id, pi, pj, isline) {
+            this.lid = id;
+            this.iid = pi;
+            this.jid = pj;
+            this.isLine = isline;
+            this.width = isline ? LineWidth : BgLineWidth;//这里的判定是反过来的，因为isLine 0和isNotLine 1
+            this.color = isline ? defaultLineColor : defaultBgLineColor;
+            this.sX = -1;
+            this.sY = -1;
+            this.eX = -1;
+            this.eY = -1;
+        }
+    }
+</script>
+
+
+<body>
+
+    <div style="position:fixed;left:10px;z-index: 10;">
+        <p id="file">文件</p><button onclick="printData()">打印数据</button>
+        <p style="font-size: 22px">选中的元素是:</p>
+        <p id="showSelectedElement" style="background-color: aqua">默认</p>
+        <button onclick="deletePoint()">删除节点</button><br><br>
+        <button onclick="changeTextVisibility(false)">隐藏/显示文字</button><br>
+        <button onclick="changeTextVisibility(true)">隐藏/显示所有文字</button><br><br>
+        <button onclick="deleteLine()">删除连线</button><br>
+        <button onclick="changeBgLineVisibility()">隐藏/显示背景线</button><br><br>
+
+        <button onclick="ChangeElementColor('red')" style="background-color: red">
+            <font size="5" color="white">red</font>
+        </button><br><br>
+        <button onclick="ChangeElementColor('yellow')" style="background-color: yellow">
+            <font size="5" color="white">yellow</font>
+        </button><br><br>
+        <button onclick="ChangeElementColor('green')" style="background-color: green">
+            <font size="5" color="white">green</font>
+        </button><br><br>
+        <button onclick="ChangeElementColor('blue')" style="background-color: blue">
+            <font size="5" color="white">blue</font>
+        </button><br><br>
+        <button onclick="ChangeElementColor('black')" style="background-color: black;">
+            <font size="5" color="white">black</font>
+        </button><br><br>
+        <button onclick="ChangeElementColor('grey')" style="background-color:gray;">
+            <font size="5" color="white">gray</font>
+        </button><br><br>
+        <button onclick="ChangeElementColor('plum')" style="background-color:plum;">
+            <font size="5" color="white">plum</font>
+        </button><br><br>
+    </div>
+    <div id="divBG" style="position: relative;left:280px;top:30px;z-index: 1;"><svg></svg></div>
+
+</body>
+
+<script>
+
+    d3.select("#file")
+        .text(jsonfile);
+
+    var drag = d3.drag()
+        .on("start", dragStart)
+        .on("drag", dragMove)
+        .on("end",dragEnd);
+
+    function dragStart(d) {
+        SelectedElementType = "Point";
+        SelectedElementText = "Point: " + d.pid
+        SelectedElementID = d.pid;
+        d3.select("#showSelectedElement")
+            .text(SelectedElementText);
+
+        MoveingPoint = d3.select(this).attr("P") + "";
+    }
+
+
+    //定义拖拽行为，此处为重新设置元素圆心位置
+    function dragMove(d) {
+        d3.select(this)
+            .attr("cx", function () {
+                //Points[MoveingPoint].X=event.x;
+                return d.X = d3.event.x;
+            })
+            .attr("cy", function () {
+                //Points[MoveingPoint].Y=event.y;
+                return d.Y = d3.event.y;
+            });
+        let selectStartPLine = "line[startP=\'" + MoveingPoint + "\']";
+        let selectEndPLine = "line[endP=\'" + MoveingPoint + "\']";
+        let selectPText = "text[T=\'" + MoveingPoint + "\']";
+
+        d3.selectAll(selectStartPLine)
+            .attr("x1", function (d) {
+                return d.sX = d3.event.x;//这样的代码形式就直接把对应的坐标赋给Points中的数据了
+            })
+            .attr("y1", function (d) {
+                return d.sY = d3.event.y;
+            });
+
+        d3.selectAll(selectEndPLine)
+            .attr("x2", function (d) {
+                return d.eX = d3.event.x;
+            })
+            .attr("y2", function (d) {
+                return d.eY = d3.event.y;
+            });
+
+        d3.selectAll(selectPText)
+            .attr("x", function (d) {
+                return d3.event.x - 8;
+            })
+            .attr("y", function (d) {
+                return d3.event.y + 25;
+            })
+    }
+    /*
+    函数:拖拽结束方法，将边界外的点带回来
+    参数:
+    备注:
+    */
+    function dragEnd(d){
+        d3.select(this)
+            .attr("cx", function () {
+                return d.X=d.X>0?d.X:PointRadius/2;
+            })
+            .attr("cy", function () {
+                //Points[MoveingPoint].Y=event.y;
+                return d.Y=d.Y>0?d.Y:PointRadius/2;
+            });
+        let finalX = d.X;
+        let finalY = d.Y;
+        let selectStartPLine = "line[startP=\'" + MoveingPoint + "\']";
+        let selectEndPLine = "line[endP=\'" + MoveingPoint + "\']";
+        let selectPText = "text[T=\'" + MoveingPoint + "\']";
+
+        d3.selectAll(selectStartPLine)
+            .attr("x1", function (d) {
+                return d.sX = finalX;//这样的代码形式就直接把对应的坐标赋给Points中的数据了
+            })
+            .attr("y1", function (d) {
+                return d.sY = finalY;
+            });
+
+        d3.selectAll(selectEndPLine)
+            .attr("x2", function (d) {
+                return d.eX = finalX;
+            })
+            .attr("y2", function (d) {
+                return d.eY = finalY;
+            });
+
+        d3.selectAll(selectPText)
+            .attr("x", function (d) {
+                return finalX - 8;
+            })
+            .attr("y", function (d) {
+                return finalY + 25;
+            });
+    }
+
+
+
+
+    d3.json(jsonfile, function (error, data) {
+        console.log('开始加载');
+        if (error) { throw error; }
+        Points = data.Points;
+        console.log(Points);
+        updateDataOfGraph();
+        drawBG();
+    });
+
+
+    /*
+    函数:生成二分图的画图数据
+    参数:
+        
+    备注:
+    */
+    function updateDataOfGraph() {
+        console.log("生成画图数据");
+        //生成随机线点坐标,如果当前坐标为-1的话
+        for (let i = 0; i < Points.length; i++) {
+            if (Points[i].color === undefined) {
+                if (Points[i].classId !== undefined) {
+                    Points[i].color = defaultPointColor[Points[i].classId - 1];
+                }
+                else { 
+                    Points[i].color = defaultPointColor[0]; 
+                }
+            }
+            if (Points[i].X === -1) Points[i].X = getRandom(0, SvgWidth / 8) + 100;
+            if (Points[i].Y === -1) Points[i].Y = getRandom(0, SvgHeight / 8) + 50;
+        }
+        Lines.length = 0;
+        //循环访问生成线数据（邻接矩阵的右上角，没有新建邻接矩阵，而是暴力访问，效率较低）
+        for (let i = 0; i < Points.length - 1; i++) {
+            for (let j = i + 1; j < Points.length; j++) {
+                if (numContains(Points[i].num, Points[j].pid)) {
+                    //生成连线数据
+                    let curLine = new Line(++CountOfLines, Points[i].pid, Points[j].pid, IsLine);
+                    let curBgLine = new Line(CountOfLines, Points[i].pid, Points[j].pid, IsBgLine);
+                    curLine.sX = Points[i].X;
+                    curLine.sY = Points[i].Y;
+                    curBgLine.sX = curLine.sX
+                    curBgLine.sY = curLine.sY
+
+                    curLine.eX = Points[j].X;
+                    curLine.eY = Points[j].Y;
+                    curBgLine.eX = curLine.eX
+                    curBgLine.eY = curLine.eY
+                    Lines.push(curBgLine);
+                    Lines.push(curLine);
+                }
+
+            }
+        }
+    }
+
+
+    /*
+    函数:绘制二分图
+    参数:
+        
+    备注:
+    */
+    function drawBG() {
+        console.log("开始画图");
+        $('#divBG svg').remove();
+        //在 body 里添加一个 SVG 画布 
+        svg = d3.select("body")
+            .select("#divBG")
+            .attr("position", "relative")
+            .attr("top", TableDivHeight)
+            .append("svg")
+            .attr("width", SvgWidth)
+            .attr("height", SvgHeight);
+
+        //添加线
+        svg.selectAll("line")
+            .data(Lines)
+            .enter()
+            .append("line")
+            .attr("x1", function (d) {
+                return d.sX;
+            })
+            .attr("y1", function (d) {
+                return d.sY;
+            })
+            .attr("x2", function (d) {
+                return d.eX;
+            })
+            .attr("y2", function (d) {
+                return d.eY;
+            })
+            .attr("stroke", function (d) {
+                return d.color;
+            })
+            .attr("stroke-opacity", function (d) {
+                return d.isLine ? LineOpacity : BgLineopacity;
+            })
+            .attr("stroke-width", function (d) {
+                return d.width;
+            })
+            .attr("startP", function (d) {
+                return d.iid;
+            })
+            .attr("endP", function (d) {
+                return d.jid;
+            })
+            .attr("L", function (d) {
+                return d.isLine ? d.lid : d.lid + 1000;//背景线ID+1000
+            })
+            .attr("visibility", function (d) {
+                return d.isLine ? "visible" : (ShowBgLines?"visible":"hidden");//背景线ID+1000
+            })
+            .on("dblclick", moveLineTop)
+            .on("click", changeSelectedElement);
+
+
+        //添加点
+        svg.selectAll("circle")
+            .data(Points)
+            .enter()
+            .append("circle")
+            .attr("r", function (d) {
+                return PointRadius;
+            })
+            .attr("cx", function (d) {
+                return d.X;
+            })
+            .attr("cy", function (d) {
+                return d.Y;
+            })
+            .attr("P", function (d) {
+                return d.pid;
+            })
+            .attr("fill", function (d) {
+                return d.color;
+            })
+            .call(drag)
+            .on("click", changeSelectedElement);
+
+        //添加点ID
+        svg.selectAll("text")
+            .data(Points)
+            .enter()
+            .append("text")
+            .attr("x", function (d) {
+                return d.X - 8;
+            })
+            .attr("y", function (d) {
+                return d.Y + 25;
+            })
+            .attr("stroke", "#3333ff")
+            .attr("font-size", "20")
+            .text(function (d) {
+                return d.pid;
+            })
+            .attr("T", function (d) {
+                return d.pid;
+            })
+            .attr("visibility", function (d) {
+                return d.showText ? "visible" : "hidden";
+            })
+            ;
+    }
+
+
+
+    /*
+    函数:从数组中得到对应ID的点元素
+    参数:
+        num:数组
+        pid:待选择ID
+    备注:
+    */
+    function getPoint(num, id) {
+        let cur = parseInt(id);
+
+        for (let i = 0; i < num.length; i++) {
+            if (parseInt(num[i].pid) === cur) {
+                return num[i];
+            }
+        }
+        return -1;
+    }
+
+    /*
+    函数:从数组中得到对应ID的线元素
+    参数:
+        num:数组
+        pid:待选择ID
+    备注:
+    */
+    function getLines(num, id) {
+        let cur = parseInt(id);
+        let curNum = [];
+        for (let i = 0; i < num.length; i++) {
+            if (parseInt(num[i].lid) === cur) {
+                curNum.push(num[i]);
+                curNum.push(num[i + 1]);
+                return curNum;
+            }
+        }
+        return -1;
+    }
+    /*
+    函数:将某条线移动到顶层
+    参数:
+    备注:
+    */
+    function moveLineTop(d, i) {
+
+        console.log(d);
+        let id = Lines[i].lid;
+        let curLine,
+            curBgLine;
+        let isChange = false;
+        for (let i = 0; i < Lines.length - 2; i = i + 2) {
+            if (Lines[i].lid === id) {
+                curBgLine = Lines[i];
+                curLine = Lines[i + 1];
+                isChange = true;
+            }
+            if (i !== Lines.length.length - 2 && isChange) {
+                Lines[i] = Lines[i + 2];
+                Lines[i + 1] = Lines[i + 3];
+            }
+        }
+        if (isChange) {
+            Lines[Lines.length - 2] = curBgLine;
+            Lines[Lines.length - 1] = curLine;
+        }
+        drawBG();
+    }
+    /*
+    函数:改变选中元素
+    参数:
+    备注:
+    */
+    function changeSelectedElement(d) {
+        if (d.pid !== undefined) {
+            SelectedElementType = "Point";
+            SelectedElementText = "Point: " + d.pid
+            SelectedElementID = d.pid;
+        } else if (d.lid !== undefined) {
+            SelectedElementType = "Line";
+            SelectedElementText = "Line: " + d.iid + "-" + d.jid;
+            SelectedElementID = d.lid;
+        }
+        d3.select("#showSelectedElement")
+            .text(SelectedElementText);
+    }
+    /*
+    函数:数组查重
+    参数:
+        num:数组
+        value:待查重元素
+    备注:
+    */
+    function numContains(num, value) {
+        for (let i = 0; i < num.length; i++)
+            if (num[i] === value)
+                return true;
+        return false;
+    }
+
+    /*
+    函数:删除数组中的某个元素
+    参数:
+    备注:这里不确定num中是否包含value，所以必须遍历所有元素
+    */
+    function deleteNumElement(num, value) {
+        let hasFound = false;
+        for (let i = 0; i < num.length; i++) {
+            if (num[i] === value) {
+                hasFound = true;
+            }
+            if (hasFound && i < num.length - 1) {
+                num[i] = num[i + 1];
+            }
+        }
+        if (hasFound) {
+            num.length -= 1;
+        }
+    }
+    /*
+    函数:删除某个节点
+    参数:
+    备注:
+    */
+    function deletePoint() {
+        console.log("删除");
+        //首先处理数据
+        if (SelectedElementType === "Point") {
+            if (getPoint(Points, SelectedElementID).num.length < 3) {
+                if (getPoint(Points, SelectedElementID).num.length === 2) {
+                    //A-B-C,删除B，要把A-C链接起来
+                    if (!numContains(getPoint(Points, getPoint(Points, SelectedElementID).num[0]).num, getPoint(Points, SelectedElementID).num[1])) {
+                        getPoint(Points, getPoint(Points, SelectedElementID).num[0]).num.push(getPoint(Points, SelectedElementID).num[1]);
+                    }
+                    if (!numContains(getPoint(Points, getPoint(Points, SelectedElementID).num[1]).num, getPoint(Points, SelectedElementID).num[0])) {
+                        getPoint(Points, getPoint(Points, SelectedElementID).num[1]).num.push(getPoint(Points, SelectedElementID).num[0]);
+                    }
+                }
+                let curNum = getPoint(Points, SelectedElementID).num;//获得要删除元素的连接点数组
+                let hasFound = false;
+                //将这个点从Points中删除
+                for (let i = 0; i < Points.length; i++) {
+                    if (Points[i].pid === SelectedElementID) {
+                        hasFound = true;
+                    }
+                    if (hasFound && i < Points.length - 1) {
+                        Points[i] = Points[i + 1];
+                    }
+                }
+                if (hasFound) {
+                    Points.length -= 1;
+                }
+                //抹除要删除的点的痕迹
+                for (let i = 0; i < curNum.length; i++) {
+                    deleteNumElement(getPoint(Points, curNum[i]).num, SelectedElementID);//A-B-C,将B从AC的num中删除
+                    if (getPoint(Points, curNum[i]).num.length === 0) {//在删除掉选中的点后，如果图中出现了度为0的点，将它删除
+                        deleteSinglePoint(curNum[i]);
+                    }
+                }
+                updateDataOfGraph();
+                drawBG();
+            } else {
+                console.log("不可删除");
+            }
+        } else {
+            console.log("只能删除点");
+
+        }
+        console.log(Points);
+
+    }
+
+    /*
+    函数:删除孤立的点
+    参数:
+    备注:
+    */
+    function deleteSinglePoint(PointId) {
+        let hasFound = false;
+        //为了保证没有数据错误，我们还是遍历所有元素
+        for (let i = 0; i < Points.length; i++) {
+            if (Points[i].pid === PointId) {
+                hasFound = true;
+            }
+            if (hasFound && i < Points.length - 1) {
+                Points[i] = Points[i + 1];
+            }
+        }
+        if (hasFound) {
+            Points.length -= 1;
+        }
+    }
+
+    /*
+    函数:删除线
+    参数:
+    备注:
+    */
+    function deleteLine() {
+        if (SelectedElementType === "Line") {
+            let selectBgLine = "line[L=\'" + (SelectedElementID + 1000) + "\']";
+            let selectLine = "line[L=\'" + (SelectedElementID) + "\']";
+            let iPointId = d3.select(selectLine).datum().iid;//datum方法用来返回某一个元素绑定，这里绑定的是一个对象，我们通过对象获得jid,iid
+            let jPointId = d3.select(selectLine).datum().jid;
+            // 删除线和背景线
+            d3.select(selectBgLine).remove();
+            d3.select(selectLine).remove();
+            let hasFound = false;
+            //遍历边数组所有元素 删除目标线的数据
+            for (let i = 0; i < Lines.length; i++) {
+                if (Lines[i].lid === SelectedElementID) {
+                    hasFound = true;
+                }
+                if (hasFound && i < Lines.lastIndexOf - 2) {
+                    Lines[i] = Lines[i + 2];
+                }
+            }
+            if (hasFound) {
+                Lines.length -= 2;
+            }
+            deleteNumElement(getPoint(Points, iPointId).num, jPointId);
+            deleteNumElement(getPoint(Points, jPointId).num, iPointId);
+            // 如果出现了孤立点的话，就把孤立的点删除
+            for (let i = 0; i < Points.length; i++) {
+                if (Points[i].num.length === 0) {
+                    let selectPoint = "circle[P=\'" + Points[i].pid + "\']";
+                    let selectText = "text[P=\'" + Points[i].pid + "\']";
+                    d3.select(selectPoint).remove();
+                    d3.select(selectText).remove();
+                    deleteSinglePoint(Points[i].pid);
+                    i--;
+                }
+            }
+        }
+    }
+
+    /*
+    函数:隐藏/显示所有的背景线
+    参数:
+    备注:
+    */
+   function changeBgLineVisibility(){
+        ShowBgLines = !ShowBgLines;
+        d3.selectAll("line")
+            .attr("visibility",function(d){
+                return d.isLine?"visible":(ShowBgLines?"visible":"hidden");
+            });
+   }
+
+    /*
+    函数：生成a-b的随机整数（包含a，b）,a，b不为整数则向下取整
+    参数：
+        a:最小值整数
+        b:最大值整数
+    备注:a<b
+    */
+    function getRandom(a, b) {
+        a = Math.floor(a);
+        b = Math.floor(b);
+        if (a >= b)
+            return -1;
+        return Math.round(Math.random() * (b - a) + a);
+    }
+
+
+    /*
+    函数:改变元素颜色
+    参数:
+    备注:
+    */
+    function ChangeElementColor(clr) {
+        if (SelectedElementType === "Point") {
+            let selectPoint = "circle[P=\'" + SelectedElementID + "\']";
+            getPoint(Points, SelectedElementID).color = clr;
+            d3.select(selectPoint)
+                .attr("fill", clr);
+        }
+        else if (SelectedElementType === "Line") {
+            let selectLine = "line[L=\'" + SelectedElementID + "\']";
+            getLines(Lines, SelectedElementID)[1].color = clr;
+            d3.selectAll(selectLine)
+                .attr("stroke", clr);
+
+        }
+
+    }
+
+    /*
+    函数:隐藏一个节点的文字描述
+    参数:
+    备注:
+    */
+    function changeTextVisibility(changeAll) {
+        if (!changeAll && SelectedElementType === "Point") {
+
+            let selectPoint = "text[T=\'" + SelectedElementID + "\']";
+            getPoint(Points, SelectedElementID).showText = !getPoint(Points, SelectedElementID).showText;
+
+            d3.select(selectPoint)
+                .attr("visibility", getPoint(Points, SelectedElementID).showText ? "visible" : "hidden");
+
+        }
+        else if (changeAll) {
+            let selectPoint = "text";
+            curShowText = false;
+            if (Points[0].showText !== undefined) curShowText = Points[0].showText;
+            console.log(curShowText);
+            for (let i = 0; i < Points.length; i++) {
+                Points[i].showText = !curShowText;
+            }
+            d3.selectAll(selectPoint)
+                .attr("visibility", !curShowText ? "visible" : "hidden");
+        }
+
+    }
+
+    /*
+    函数:打印图像数据
+    参数:
+    备注:
+    */
+    function printData() {
+        JsonData = new Data(Points, Log);
+        StringData = JSON.stringify(JsonData);
+        console.log(StringData);
+    }
+</script>
+
+</html>
