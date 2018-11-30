@@ -26,7 +26,7 @@ if you need english comments, maybe you can contact me or find some help from yo
 
 如果这写代码帮到了你，给我一个star呗~
 
-if these coeds help yoo, i'll be vary happy if you give me a star~
+if these codes help yoo, i'll be very happy if you give me a star~
 
 
 ![Image text](https://raw.githubusercontent.com/Bu-Chuan/img-folder/master/%E7%82%B9%E7%BA%BF%E5%9B%BE.png)
